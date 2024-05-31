@@ -10,11 +10,11 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
 
-public class ProducerDemo {
-    private static final Logger log= LoggerFactory.getLogger(ProducerDemo.class.getSimpleName());
-    //how to write first Kafka producer using Java API, code to send data to Apache Kafka.We'll view some basic
-    // configuration parameters, and we'll confirm that we received the data in a Kafka Console Consumer.
+public class ProducerDemoWithCallback {
+    private static final Logger log= LoggerFactory.getLogger(ProducerDemoWithCallback.class.getSimpleName());
 
+//For us to understand from the producer itself to which partition and offset the message was sent to, we'll use the callback interface.
+//StickyPartitioner, which is a very interesting behavior of the producer.
 
     public static void main(String[] args) {
         log.info("I am a Kafka Producer!");
@@ -22,7 +22,7 @@ public class ProducerDemo {
 
         //create Producer properties
         Properties properties= new Properties();
-      //  properties.setProperty("key","value");
+        //  properties.setProperty("key","value");
 
 
         //port pairs which are used for establishing an initial connection to the Kafka cluster.
@@ -49,20 +49,47 @@ public class ProducerDemo {
         // create the Producer
         KafkaProducer<String, String> producer = new KafkaProducer<>(properties);
 
-        // create a Producer Record
-        ProducerRecord<String, String> producerRecord =
-                new ProducerRecord<>("demo_java", "hello world");
 
+        for (int j=0; j<10; j++){
 
-        // send data. using the Java API, we're going to look at callbacks. For us to understand from the producer itself
-        //to which partition and offset the message was sent to, we'll use the callback interface.
-        producer.send(producerRecord);
+            for (int i=0; i<30; i++){
+
+                // create a Producer Record
+                ProducerRecord<String, String> producerRecord =
+                        new ProducerRecord<>("demo_java", "hello world " + i);
+
+                // send data
+                producer.send(producerRecord, new Callback() {
+                    @Override
+                    public void onCompletion(RecordMetadata metadata, Exception e) {
+                        // executes every time a record successfully sent or an exception is thrown
+                        if (e == null) {
+                            // the record was successfully sent
+                            log.info("Received new metadata \n" +
+                                    "Topic: " + metadata.topic() + "\n" +
+                                    "Partition: " + metadata.partition() + "\n" +
+                                    "Offset: " + metadata.offset() + "\n" +
+                                    "Timestamp: " + metadata.timestamp());
+                        } else {
+                            log.error("Error while producing", e);
+                        }
+                    }
+                });
+            }
+
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        }
+
 
         // tell the producer to send all data and block until done -- synchronous
         producer.flush();
 
         // flush and close the producer
         producer.close();
-
     }
-    }
+}
