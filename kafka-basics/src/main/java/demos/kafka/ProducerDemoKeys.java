@@ -67,7 +67,8 @@ public class ProducerDemoKeys {
             }
 
             try {
-                Thread.sleep(500);
+                Thread.sleep(500);// Since there is a delay, the Kafka cluster might have more time to process
+                // messages and manage partitions, potentially affecting how messages are distributed across partitions.
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
