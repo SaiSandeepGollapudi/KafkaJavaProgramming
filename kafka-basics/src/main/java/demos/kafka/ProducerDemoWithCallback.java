@@ -14,8 +14,11 @@ public class ProducerDemoWithCallback {
     private static final Logger log= LoggerFactory.getLogger(ProducerDemoWithCallback.class.getSimpleName());
 
 //For us to understand from the producer itself to which partition and offset the message was sent to, we'll use the callback interface.
-//StickyPartitioner, which is a very interesting behavior of the producer.
-
+// "RoundRobinPartitioner". The reason I used  round robin partitioner in CLI is because I want to produce to one
+// partition at a time, and change every partition. If you do not use this round robin partitioner,
+// There have been so many optimizations built in into Kafka right now that you will keep on producing
+// to the same partition up until you send about 16 kilobytes of data, and then you will switch partition this is StickyPartitioner
+// Here by default its being followed
     public static void main(String[] args) {
         log.info("I am a Kafka Producer!");
 
