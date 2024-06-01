@@ -3,10 +3,8 @@ package demos.kafka;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,11 +12,11 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Properties;
 
-public class ConsumerDemo {
+public class ConsumerDemoWithShutdown {
    // poll method to get messages from the Kafka broker, and we'll see that the poll method will return data immediately
     // if possible, else will return empty and wait for a timeout until it responds.
 
-   private static final Logger log= LoggerFactory.getLogger(ConsumerDemo.class.getSimpleName());
+   private static final Logger log= LoggerFactory.getLogger(ConsumerDemoWithShutdown.class.getSimpleName());
     //Loggers in Spring Boot offer better control, configurability, performance, and scalability compared to
     // `System.out.println()`. They also facilitate centralized log management for easier monitoring and debugging
     // in production environments
@@ -65,31 +63,62 @@ public class ConsumerDemo {
         // create a consumer
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(properties);
 
-        //subscribe to a topic
-        consumer.subscribe(Arrays.asList(topic));//So we'll pass in a collection of topics.So I have arrays as list and
-        // then you can pass in as many topics as you want. So you can say topic one and then topic two and so on.
-        // But we only have one topic right now.
+        // get a reference to the main thread
+        final Thread mainThread = Thread.currentThread();//
 
-while(true){// this is an infinite loop.We'll see how to be a little bit better with infinite stuff in the future,
-    // but right now we keep on polling for data infinitely,
+        // adding the shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            // if I click on here on exit,it's going to send a shutdown.So thread zero, which is a new thread,not the
+            // main thread will say,I detected a shutdown let's exit by calling consumer.wake up.So we were
+            // here in the shutdown hook.And then the consumer.wakeup got called.
 
-    log.info("Polling");
+            public void run() {
+                log.info("Detected a shutdown, let's exit by calling consumer.wakeup()...");
+                consumer.wakeup();//We went into poll, which triggered an exception because now we will see the main
+                // thread saying,"Consumer is starting to shut down."
 
-    ConsumerRecords<String, String> records= consumer.poll(Duration.ofMillis(1000));//Duration which is how long we're willing to wait to receive data.
-    // duration of milliseconds 1000, means that if there's data.Then we will get it right away,But if Kafka does not
-    // have any data for us, we are waiting to wait one second to receive data from Kafka.So this is not, this is in
-    // order not to overload Kafka.
+                // join the main thread to allow the execution of the code in the main thread
+                try {
+                    mainThread.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
 
-    for(ConsumerRecord<String, String> record: records){//for every record in my collection of records.
-        log.info("key: " + record.key() + ", Value: " + record.value());
-        log.info("Partition: "+ record.partition() + ",Offset: "+ record.offset());//if I actually run my producer demo
-        // with keys, for example right now,and start sending some data with my producer demo with keys.As we can see now,
-        // the data has been received by the consumer.So we can see the hello worlds, we can see the key,the values if
-        // it's not null and so on. So it was reading and being efficient.
+
+
+        try {
+            // subscribe to a topic
+            consumer.subscribe(Arrays.asList(topic));
+            // poll for data
+            while (true) {
+
+                ConsumerRecords<String, String> records =
+                        consumer.poll(Duration.ofMillis(1000));
+
+                for (ConsumerRecord<String, String> record : records) {
+                    log.info("Key: " + record.key() + ", Value: " + record.value());
+                    log.info("Partition: " + record.partition() + ", Offset: " + record.offset());
+                }
+
+            }
+
+        } catch (WakeupException e) {
+            log.info("Consumer is starting to shut down");
+            //Then we go and close the consumer.
+        } catch (Exception e) {
+            log.error("Unexpected exception in the consumer", e);
+        } finally {
+            consumer.close(); // close the consumer, this will also commit offsets
+            log.info("The consumer is now gracefully shut down");//this is called
+            // a graceful shutdown of the consumer because now we're revoking the previously assigned partitions.
+            // We are resetting generation and so on. We're leaving the group. This is all the things that happen
+            // . Then the metrics shut down, the app info bar that's there also shuts down. And finally, when
+            // Kafka has done all its thing, we display one final message called, that says, "The consumer is now
+            // gracefully shut down."
+        }
+
+
     }
 }
-
-
-
-    }
-    }
