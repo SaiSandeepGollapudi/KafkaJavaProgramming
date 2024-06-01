@@ -52,7 +52,7 @@ public class ProducerDemoWithCallback {
         // create the Producer
         KafkaProducer<String, String> producer = new KafkaProducer<>(properties);
 
-
+       // let's produce multiple messages at a time in our topic and see the behavior.
         for (int j=0; j<10; j++){
 
             for (int i=0; i<30; i++){
